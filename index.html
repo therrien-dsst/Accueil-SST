@@ -625,7 +625,7 @@ async function soumettre() {
     document.getElementById('succes-num').textContent = etat.numeroFinal + ' — ' + etat.prenom_travailleur + ' ' + etat.nom;
     document.getElementById('succes-message').innerHTML = "L'accueil a été enregistré avec succès sous le numéro <strong>" + etat.numeroFinal + "</strong>.";
     afficherEcran('succes');
-  } catch(e) { spinner.classList.remove('visible'); erreur.classList.add('visible'); }
+  } catch(e) { console.error('ERREUR RÉELLE:', e); spinner.classList.remove('visible'); erreur.classList.add('visible'); }
 }
 
 // ── NOUVEL ACCUEIL ──

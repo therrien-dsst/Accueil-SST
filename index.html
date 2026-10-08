@@ -351,6 +351,15 @@ var etat = {
   reponses:{q1:null,q2:null,q3:null},
   initiales:''
 };
+
+// Formatage déterministe de la date : AAAA-MM-JJ HH:MM
+// Identique sur tous les appareils (contrairement à toLocaleString) et
+// triable chronologiquement dans Excel même comme texte.
+function formaterDateHeure(d) {
+  var p = function(n){ return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+       + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
 var QUESTIONS = [
   {id:'q1', label:'Tolérances zéro'},
   {id:'q2', label:'Tenue des lieux et pauses SST'},
@@ -497,7 +506,7 @@ function allerConfirmations() {
   etat.nom = document.getElementById('nom').value.trim();
   etat.employeur = getEmployeur();
   etat.metier = document.getElementById('metier').value.trim();
-  etat.dateHeure = new Date().toLocaleString('fr-CA', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+  etat.dateHeure = formaterDateHeure(new Date());
   afficherEcran('confirmations');
 }
 

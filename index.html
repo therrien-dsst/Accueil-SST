@@ -565,24 +565,11 @@ async function allerRevision() {
   document.getElementById('erreur-signature').classList.remove('visible');
   etat.initiales = initiales.toUpperCase();
 
-  document.getElementById('rev-num').textContent = 'Calcul du numéro en cours...';
-  document.getElementById('numBadge4').textContent = 'Calcul...';
-
-  try {
-    var reponse = await fetch(COMPTER_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({abreviation_chantier: etat.abreviation})
-    });
-    var compte = parseInt(await reponse.text(), 10);
-    if (isNaN(compte)) compte = 0;
-    etat.numeroFinal = etat.abreviation + (100 + compte + 1);
-  } catch (e) {
-    etat.numeroFinal = etat.abreviation + '-??? (à confirmer)';
-  }
-
-  document.getElementById('rev-num').textContent = etat.numeroFinal;
-  mettreAJourBadgeNumero(etat.numeroFinal);
+  // Le numéro est attribué par le flow Power Automate au moment de l'enregistrement
+  etat.numeroFinal = '';
+  document.getElementById('rev-num').textContent = 'Attribué à l’enregistrement';
+  document.getElementById('numBadge4').textContent = etat.abreviation + '-…';
+  mettreAJourBadgeNumero(etat.abreviation + '-…');
   document.getElementById('rev-chantier').textContent = etat.chantier;
   document.getElementById('rev-nom').textContent = etat.prenom_travailleur + ' ' + etat.nom;
   document.getElementById('rev-employeur').textContent = etat.employeur + ' \u2014 ' + etat.metier;
@@ -602,8 +589,8 @@ async function allerRevision() {
 }
 
 // ── SOUMISSION ──
-var WEBHOOK_URL = 'https://default77f5403c8fff4bb8b1eb39661b4745.a0.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/06/workflows/f8607218152849c490f8028760f8b8ad/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=I3jKCSCPVhpoksOo3Ic1oyjGzQajWMMaHbSTEwznCMU';
-var COMPTER_URL = 'https://default77f5403c8fff4bb8b1eb39661b4745.a0.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/06/workflows/cc7f04bc22ae442a8e90688adea9a79d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=Ldw4jp13g3c_NsUGdEY8KEBlInRkm0eQbKuUMfn7u7I';
+// Flow fusionné unique : attribue le numéro de façon atomique et écrit la ligne Excel
+var WEBHOOK_URL = 'https://default77f5403c8fff4bb8b1eb39661b4745.a0.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/07/workflows/6578eced398a493ab7b000d988214154/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=rbFK3I2uW8zVxwS9SXcRFT39LnOJKWa1IW1bCLg8fFE';
 async function soumettre() {
   var spinner = document.getElementById('spinnerSoumission');
   var erreur = document.getElementById('erreur-soumission');
@@ -614,9 +601,8 @@ async function soumettre() {
   var inspecteur = etat.prenom;  // prenom contient le nom de l'inspecteur
   
   var payload = {
-    numero_accueil: etat.numeroFinal,
     abreviation_chantier: etat.abreviation,
-    date: etat.dateHeure, chantier: etat.chantier,
+    date_accueil: etat.dateHeure, chantier: etat.chantier,
     responsable_accueil: inspecteur, travailleur_prenom: etat.prenom_travailleur, travailleur_nom: etat.nom, employeur: etat.employeur, metier: etat.metier,
     q1_tolerances_zero: etat.reponses.q1,
     q2_tenue_pauses: etat.reponses.q2,
@@ -632,10 +618,24 @@ async function soumettre() {
       afficherEcran('succes');
       return;
     }
-    await fetch(WEBHOOK_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    var rep = await fetch(WEBHOOK_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (!rep.ok) { throw new Error('HTTP ' + rep.status); }
+    // Le flow renvoie le numéro attribué (texte brut ou JSON selon le script)
+    var brut = (await rep.text()).trim();
+    var numero = '';
+    if (brut) {
+      try {
+        var d = JSON.parse(brut);
+        if (typeof d === 'string' || typeof d === 'number') { numero = String(d); }
+        else if (d && typeof d === 'object') { numero = String(d.numero_accueil || d.numero || d.result || d.value || ''); }
+      } catch (e) { numero = brut.replace(/^"+|"+$/g, ''); }
+    }
+    etat.numeroFinal = numero;
     spinner.classList.remove('visible');
-    document.getElementById('succes-num').textContent = etat.numeroFinal + ' — ' + etat.prenom_travailleur + ' ' + etat.nom;
-    document.getElementById('succes-message').innerHTML = "L'accueil a été enregistré avec succès sous le numéro <strong>" + etat.numeroFinal + "</strong>.";
+    document.getElementById('succes-num').textContent = (numero ? numero + ' — ' : '') + etat.prenom_travailleur + ' ' + etat.nom;
+    document.getElementById('succes-message').innerHTML = numero
+      ? "L'accueil a été enregistré avec succès sous le numéro <strong>" + numero + "</strong>."
+      : "L'accueil a été enregistré avec succès. Le numéro est visible dans Excel.";
     afficherEcran('succes');
   } catch(e) { spinner.classList.remove('visible'); erreur.classList.add('visible'); }
 }

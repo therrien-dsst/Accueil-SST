@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00386B">
 <title>Accueil SST — Therrien</title>
@@ -704,6 +707,16 @@ function chargerInspecteurs() {
 
 chargerChantiers();
 chargerInspecteurs();
+</script>
+<script>
+// Anti-cache : service worker « réseau d'abord » — l'app charge toujours la
+// dernière version en ligne et garde une copie pour le hors-ligne. Toute mise
+// à jour future est prise automatiquement, sans vider le cache.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  });
+}
 </script>
 </body>
 </html>

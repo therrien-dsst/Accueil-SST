@@ -59,6 +59,7 @@
   /* BOUTONS */
   .btn-primary { display: block; width: 100%; padding: 16px; background: var(--bleu); color: white; font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border: none; cursor: pointer; transition: background 0.2s; }
   .btn-primary:hover { background: var(--bleu-fonce); }
+  .btn-primary:disabled, .btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
   .btn-secondary { display: inline-block; padding: 10px 20px; background: transparent; color: var(--bleu); font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border: 2px solid var(--bleu); cursor: pointer; transition: all 0.2s; }
   .btn-secondary:hover { background: var(--bleu); color: white; }
   /* OUI / NON */
@@ -303,12 +304,18 @@
       <div class="confirm-info"><div class="confirm-info-label">Initiales</div><div class="confirm-info-value" id="rev-initiales"></div></div>
       <div id="resumeConfirmations" style="margin-top:16px;"></div>
       <div style="margin-top:24px;">
-        <button class="btn-primary" onclick="soumettre()">SOUMETTRE L'ACCUEIL SST &rarr;</button>
+        <button class="btn-primary" id="btn-soumettre" onclick="soumettre()">SOUMETTRE L'ACCUEIL SST &rarr;</button>
         <div style="text-align:center;margin-top:12px;">
-          <button class="btn-secondary" onclick="afficherEcran('signature')">&larr; Modifier</button>
+          <button class="btn-secondary" id="btn-modifier" onclick="afficherEcran('signature')">&larr; Modifier</button>
         </div>
       </div>
-      <div class="erreur-msg" id="erreur-soumission">Une erreur est survenue lors de la soumission. Veuillez r&eacute;essayer.</div>
+      <div class="erreur-msg" id="erreur-soumission">
+        <strong>L'envoi n'a pas pu &ecirc;tre confirm&eacute;.</strong><br>
+        L'accueil est peut-&ecirc;tre d&eacute;j&agrave; enregistr&eacute;. <strong>Ne le soumettez pas &agrave; nouveau tout de suite</strong> : v&eacute;rifiez d'abord dans Excel (ou avisez le responsable SST). Si la ligne y est, rechargez la page pour un nouvel accueil.
+        <div style="margin-top:10px;">
+          <button class="btn-secondary" onclick="renvoyerAccueil()">Il n'est pas dans Excel &mdash; renvoyer</button>
+        </div>
+      </div>
       <div class="spinner" id="spinnerSoumission">Envoi en cours...</div>
     </div>
   </div>
@@ -594,12 +601,41 @@ async function allerRevision() {
 // ── SOUMISSION ──
 // Flow fusionné unique : attribue le numéro de façon atomique et écrit la ligne Excel
 var WEBHOOK_URL = 'https://default77f5403c8fff4bb8b1eb39661b4745.a0.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/07/workflows/6578eced398a493ab7b000d988214154/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=rbFK3I2uW8zVxwS9SXcRFT39LnOJKWa1IW1bCLg8fFE';
+var soumissionEnCours = false;   // verrou anti-double soumission
+var accueilEnvoye = false;       // un envoi a déjà été tenté pour cet accueil
+
+function verrouillerBoutons(verrouiller) {
+  ['btn-soumettre', 'btn-modifier'].forEach(function(id) {
+    var b = document.getElementById(id);
+    if (b) { b.disabled = verrouiller; }
+  });
+}
+
+// Renvoi volontaire, seulement après vérification dans Excel
+function renvoyerAccueil() {
+  accueilEnvoye = false;
+  soumettre();
+}
+
 async function soumettre() {
+  // Un seul envoi à la fois : les clics répétés sont ignorés
+  if (soumissionEnCours) { return; }
+  // Après un envoi non confirmé, on exige le bouton « renvoyer »
+  if (accueilEnvoye) { return; }
+  soumissionEnCours = true;
+  accueilEnvoye = true;
+  verrouillerBoutons(true);
+
   var spinner = document.getElementById('spinnerSoumission');
   var erreur = document.getElementById('erreur-soumission');
+  spinner.textContent = 'Envoi en cours...';
   spinner.classList.add('visible');
   erreur.classList.remove('visible');
-  
+  // Si l'envoi traîne, on dit de patienter (évite les clics et rechargements)
+  var minuterieAttente = setTimeout(function() {
+    spinner.textContent = 'Envoi en cours... Veuillez patienter, cela peut prendre jusqu’à 2 minutes. Ne fermez pas et ne soumettez pas à nouveau.';
+  }, 15000);
+
   // Récupérer le nom de la personne qui effectue l'accueil
   var inspecteur = etat.prenom;  // prenom contient le nom de l'inspecteur
   
@@ -640,7 +676,15 @@ async function soumettre() {
       ? "L'accueil a été enregistré avec succès sous le numéro <strong>" + numero + "</strong>."
       : "L'accueil a été enregistré avec succès. Le numéro est visible dans Excel.";
     afficherEcran('succes');
-  } catch(e) { spinner.classList.remove('visible'); erreur.classList.add('visible'); }
+  } catch(e) {
+    // Envoi non confirmé : la ligne a pu être écrite quand même (ex. délai 504).
+    // On garde les boutons verrouillés et on n'invite pas à « réessayer ».
+    spinner.classList.remove('visible');
+    erreur.classList.add('visible');
+  } finally {
+    clearTimeout(minuterieAttente);
+    soumissionEnCours = false;
+  }
 }
 
 // ── NOUVEL ACCUEIL ──
@@ -665,6 +709,11 @@ function nouvelAccueil() {
   });
   document.getElementById('chantier').classList.remove('erreur');
   mettreAJourBadgeNumero('Accueil #—');
+  // Nouvel accueil : on déverrouille l'envoi
+  soumissionEnCours = false;
+  accueilEnvoye = false;
+  verrouillerBoutons(false);
+  document.getElementById('erreur-soumission').classList.remove('visible');
   afficherEcran('identification');
 }
 

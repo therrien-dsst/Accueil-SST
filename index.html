@@ -94,7 +94,9 @@
   /* SUCCES */
   .succes-icon { font-size: 56px; text-align: center; margin-bottom: 16px; }
   .succes-titre { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 700; text-transform: uppercase; text-align: center; margin-bottom: 8px; color: var(--vert); }
-  .succes-num { text-align: center; font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 700; color: var(--bleu); margin-bottom: 20px; letter-spacing: 1px; }
+  .succes-num { text-align: center; font-family: 'Barlow Condensed', sans-serif; margin-bottom: 20px; }
+  .succes-numero { font-size: 96px; font-weight: 800; color: var(--vert); line-height: 1; letter-spacing: 2px; white-space: nowrap; margin: 8px 0 14px; }
+  .succes-nom { font-size: 20px; font-weight: 700; color: var(--bleu); letter-spacing: 1px; }
   .succes-message { text-align: center; color: #666; font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
   .spinner { display: none; text-align: center; padding: 20px; color: #777; font-size: 14px; }
   .spinner.visible { display: block; }
@@ -601,6 +603,34 @@ async function allerRevision() {
 // ── SOUMISSION ──
 // Flow fusionné unique : attribue le numéro de façon atomique et écrit la ligne Excel
 var WEBHOOK_URL = 'https://default77f5403c8fff4bb8b1eb39661b4745.a0.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/07/workflows/6578eced398a493ab7b000d988214154/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=rbFK3I2uW8zVxwS9SXcRFT39LnOJKWa1IW1bCLg8fFE';
+// Écran de succès : numéro très gros en vert, nom du travailleur en dessous
+function afficherNumeroSucces(numero) {
+  var cont = document.getElementById('succes-num');
+  cont.textContent = '';
+  if (numero) {
+    var n = document.createElement('div');
+    n.className = 'succes-numero';
+    n.id = 'succes-numero';
+    n.textContent = numero;
+    cont.appendChild(n);
+  }
+  var nm = document.createElement('div');
+  nm.className = 'succes-nom';
+  nm.textContent = etat.prenom_travailleur + ' ' + etat.nom;
+  cont.appendChild(nm);
+}
+// Réduit la taille du numéro seulement si nécessaire pour qu'il tienne à l'écran
+function ajusterNumeroSucces() {
+  var n = document.getElementById('succes-numero');
+  if (!n) { return; }
+  var taille = 96;
+  n.style.fontSize = taille + 'px';
+  while (n.scrollWidth > n.parentNode.clientWidth && taille > 32) {
+    taille -= 4;
+    n.style.fontSize = taille + 'px';
+  }
+}
+
 var soumissionEnCours = false;   // verrou anti-double soumission
 var accueilEnvoye = false;       // un envoi a déjà été tenté pour cet accueil
 
@@ -671,11 +701,12 @@ async function soumettre() {
     }
     etat.numeroFinal = numero;
     spinner.classList.remove('visible');
-    document.getElementById('succes-num').textContent = (numero ? numero + ' — ' : '') + etat.prenom_travailleur + ' ' + etat.nom;
+    afficherNumeroSucces(numero);
     document.getElementById('succes-message').innerHTML = numero
-      ? "L'accueil a été enregistré avec succès sous le numéro <strong>" + numero + "</strong>."
+      ? "L'accueil a été enregistré avec succès. Notez bien votre numéro d'accueil."
       : "L'accueil a été enregistré avec succès. Le numéro est visible dans Excel.";
     afficherEcran('succes');
+    ajusterNumeroSucces();
   } catch(e) {
     // Envoi non confirmé : la ligne a pu être écrite quand même (ex. délai 504).
     // On garde les boutons verrouillés et on n'invite pas à « réessayer ».
